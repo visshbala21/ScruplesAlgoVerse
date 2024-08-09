@@ -1,34 +1,24 @@
 import os
-from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
 import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, BitsAndBytesConfig
+from src.config import load_config
 
-def load_model(model_id):
+def load_model_from_config(config_path):
     """
-    Load and return the model and tokenizer.
-    
+    Load the model and tokenizer based on the given configuration file.
+
     Args:
-    model_id (str): The model identifier from Hugging Face.
+    config_path (str): Path to the YAML config file.
 
     Returns:
     model: The loaded model.
     tokenizer: The loaded tokenizer.
     """
-    tokenizer = AutoTokenizer.from_pretrained(model_id)
-    nf4_config = BitsAndBytesConfig(
-       load_in_4bit=True,
-       bnb_4bit_quant_type="nf4",
-       bnb_4bit_use_double_quant=True,
-       bnb_4bit_compute_dtype=torch.bfloat16
-    )
-    model = AutoModelForCausalLM.from_pretrained(model_id, quantization_config=nf4_config)
-    return model, tokenizer
+    config = load_config(config_path)
+    model_id = config['model_id']
+    quantization_config = BitsAndBytesConfig(**config['quantization_config'])
 
-def get_model_probabilities(text, model, tokenizer, device='cuda'):
-    inputs = tokenizer(text, return_tensors='pt').to(device)
-    with torch.no_grad():
-        outputs = model(**inputs)
-    logits = outputs.logits
-    # Focus on the logits of the last token in the sequence
-    last_token_logits = logits[:, -1, :]
-    probs = torch.softmax(last_token_logits, dim=-1)
-    return last_token_logits, probs
+    tokenizer = AutoTokenizer.from_pretrained(model_id)
+    model = AutoModelForCausalLM.from_pretrained(model_id, quantization_config=quantization_config)
+
+    return model, tokenizer
